@@ -263,8 +263,8 @@ def main():
 	                     testloader, 				# Test Data Set
 						 pixels=args.pixels,		# of Pixels
 						 targeted=args.targeted, 
-						 maxiter=300, #args.maxiter, 
-						 popsize=800, #args.popsize, 
+						 maxiter=400, #args.maxiter, 
+						 popsize=600, #args.popsize, 
 						 verbose=args.verbose)
 
 	print("Final success rate: %.4f"%results)
