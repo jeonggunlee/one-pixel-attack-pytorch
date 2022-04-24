@@ -33,33 +33,74 @@ parser.add_argument('--verbose', action='store_true', help='Print out additional
 
 args = parser.parse_args()
 
+def imshow(img):    # unnormalize
+	npimg = img.numpy()
+	npimg = (npimg - np.min(npimg))/ (np.max(npimg) - np.min(npimg))
+	#print(npimg)
+	plt.imshow(np.transpose(npimg, (1, 2, 0)))
+	plt.show()
+
+
 # xs: attack results, searched perturbations.
 # image: image
 def perturb_image(xs, img):
+	img_origin = img.clone()[0]
+	# xs shape: (400, 5)
 	if xs.ndim < 2:
 		xs = np.array([xs])
-	batch = len(xs)
-	imgs = img.repeat(batch, 1, 1, 1)
+	batch = len(xs)			# Size of Population: 400
+	imgs = img.repeat(batch, 1, 1, 1)  # imgs: torch.Size([400, 3, 32, 32])
 	xs = xs.astype(int)
 
 	count = 0
-	for x in xs:
+	for x in xs:							# Iteration of population size
 		pixels = np.split(x, len(x)/5)
 		
+		#print("Before Perturb")
+		#imshow(imgs[count])
+		#print(torch.max(imgs[count]))
+		#print(torch.min(imgs[count]))
+
 		for pixel in pixels:
+
 			x_pos, y_pos, r, g, b = pixel
-			imgs[count, 0, x_pos, y_pos] = (r/255.0-0.4914)/0.2023
-			imgs[count, 1, x_pos, y_pos] = (g/255.0-0.4822)/0.1994
-			imgs[count, 2, x_pos, y_pos] = (b/255.0-0.4465)/0.2010
+			# count:batch_size(pop size), channels, x_pos, y_pos
+			# RGB sensitivity check ???
+			# When we read image value, it needs to keep an original image for reading specific position value
+			# To flip bit, New RGB = (RGB value >> specific_bit_position) & 1
+			#imgs[count, 0, x_pos, y_pos] = (r/255.0-0.4914)/0.2023
+			#imgs[count, 1, x_pos, y_pos] = (g/255.0-0.4822)/0.1994
+			#imgs[count, 2, x_pos, y_pos] = (b/255.0-0.4465)/0.2010
+			rr = img_origin[0, x_pos, y_pos]
+			gg = img_origin[1, x_pos, y_pos]
+			bb = img_origin[2, x_pos, y_pos]
+			#print("Before:: rr/gg/bb : ", rr, gg, bb)
+			#print("r/g/b : ", r, g, b)
+			frr = (int((rr*0.2023 + 0.4914)*255) ^ (1 << r))
+			fgg = (int((gg*0.1994 + 0.4822)*255) ^ (1 << g))
+			fbb = (int((bb*0.2010 + 0.4465)*255) ^ (1 << b))
+			#print("frr/fgg/fbb : ", frr, fgg, fbb)
+			imgs[count, 0, x_pos, y_pos] = (frr/255.0-0.4914)/0.2023
+			imgs[count, 1, x_pos, y_pos] = (fgg/255.0-0.4822)/0.1994
+			imgs[count, 2, x_pos, y_pos] = (fbb/255.0-0.4465)/0.2010
+			#print("After:: rr/gg/bb : ", imgs[count, 0, x_pos, y_pos], imgs[count, 1, x_pos, y_pos], imgs[count, 2, x_pos, y_pos])
+
+		#print("After Perturb")
+		#imshow(imgs[count])
+		#print(torch.max(imgs[count]))
+		#print(torch.min(imgs[count]))
 		count += 1
 
 	return imgs
 
 def predict_classes(xs, img, target_calss, net, minimize=True):
+	# perturb_image makes population size of perturbated images.
 	imgs_perturbed = perturb_image(xs,			# perturbation
 	                               img.clone()	# clone of img to keep original img.
 								   )
 
+	#print("predict_classes")
+	#imshow(imgs_perturbed[0])
 	#input = Variable(imgs_perturbed, volatile=True).cuda()
 	input = Variable(imgs_perturbed).cuda()
 
@@ -76,7 +117,7 @@ def attack_success(x, img, target_calss, net, targeted_attack=False, verbose=Fal
 	#input = Variable(attack_image, volatile=True).cuda()
 	input = Variable(attack_image).cuda()
 	#confidence = F.softmax(net(input)).data.cpu().numpy()[0]
-	confidence = F.softmax(net(input), dim=1).data.cpu().numpy()
+	confidence = F.softmax(net(input), dim=1).data.cpu().numpy()  ## cpu().numpy() == .item() ??
 
 	predicted_class = np.argmax(confidence)
 
@@ -86,13 +127,6 @@ def attack_success(x, img, target_calss, net, targeted_attack=False, verbose=Fal
 		return True
 
 
-def imshow(img):    # unnormalize
-	npimg = img.numpy()
-	npimg = (npimg - np.min(npimg))/ (np.max(npimg) - np.min(npimg))
-	#print(npimg)
-	plt.imshow(np.transpose(npimg, (1, 2, 0)))
-	plt.show()
-
 def attack(img, label, net, target=None, pixels=1, maxiter=75, popsize=400, verbose=False):
 	# img: 1*3*W*H tensor
 	# label: a number
@@ -100,23 +134,31 @@ def attack(img, label, net, target=None, pixels=1, maxiter=75, popsize=400, verb
 	targeted_attack = target is not None
 	target_calss = target if targeted_attack else label
 
-	bounds = [(0,32), (0,32), (0,255), (0,255), (0,255)] * pixels
+	#bounds = [(0,32), (0,32), (0,255), (0,255), (0,255)] * pixels
+	bounds = [(0,32), (0,32), (0,7), (0,7), (0,7)] * pixels
+
 
 	popmul = int(max(1, popsize/len(bounds)))
 
-	predict_fn = lambda xs: predict_classes(
+	predict_fn = lambda xs: predict_classes(				# Probability of Target Class
 		xs, img, target_calss, net, target is None)
-	callback_fn = lambda x, convergence: attack_success(
+	callback_fn = lambda x, convergence: attack_success(	# TRUE or FALSE
 		x, img, target_calss, net, targeted_attack, verbose)
 
+	# inits shape : [400, 5*pixels]
 	inits = np.zeros([popmul*len(bounds), len(bounds)])
+
+	# Make an initial perturbation list
 	for init in inits:
 		for i in range(pixels):
-			init[i*5+0] = np.random.random()*32
-			init[i*5+1] = np.random.random()*32
-			init[i*5+2] = np.random.normal(128,127)
-			init[i*5+3] = np.random.normal(128,127)
-			init[i*5+4] = np.random.normal(128,127)
+			init[i*5+0] = np.random.random()*32			# x
+			init[i*5+1] = np.random.random()*32			# y
+			#init[i*5+2] = np.random.normal(128,127)	# Red
+			#init[i*5+3] = np.random.normal(128,127)	# Green
+			#init[i*5+4] = np.random.normal(128,127)	# Blue
+			init[i*5+2] = np.random.randint(0, 8)		# Red: 0 - 7
+			init[i*5+3] = np.random.randint(0, 8)		# Green: 0 - 7
+			init[i*5+4] = np.random.randint(0, 8)		# Blue: 0 - 7
 
 	attack_result = differential_evolution(predict_fn, bounds, maxiter=maxiter, popsize=popmul,
 		recombination=1, atol=-1, callback=callback_fn, polish=False, init=inits)
@@ -211,12 +253,18 @@ def main():
 
 	print("==> Starting attck...")
 	print("# of Pixel:", args.pixels, " target (1) / non-target (0):", args.targeted)
+
+	#parser.add_argument('--pixels', default=1, type=int, help='The number of pixels that can be perturbed.')
+	#parser.add_argument('--maxiter', default=100, type=int, help='The maximum number of iteration in the DE algorithm.')
+	#parser.add_argument('--popsize', default=400, type=int, help='The number of adverisal examples in each iteration.')
+	#parser.add_argument('--samples', default=100, type=int, help='The number of image samples to attack.')
+
 	results = attack_all(net, 						# Deep Network
 	                     testloader, 				# Test Data Set
 						 pixels=args.pixels,		# of Pixels
 						 targeted=args.targeted, 
-						 maxiter=args.maxiter, 
-						 popsize=args.popsize, 
+						 maxiter=300, #args.maxiter, 
+						 popsize=800, #args.popsize, 
 						 verbose=args.verbose)
 
 	print("Final success rate: %.4f"%results)

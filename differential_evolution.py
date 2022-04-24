@@ -23,11 +23,21 @@ __all__ = ['differential_evolution']
 _MACHEPS = np.finfo(np.float64).eps
 
 
-def differential_evolution(func, bounds, args=(), strategy='best1bin',
-                           maxiter=1000, popsize=15, tol=0.01,
-                           mutation=(0.5, 1), recombination=0.7, seed=None,
-                           callback=None, disp=False, polish=True,
-                           init='latinhypercube', atol=0):
+def differential_evolution(func,                    # predict_fn
+                           bounds, 
+                           args=(), 
+                           strategy='best1bin',
+                           maxiter=1000, 
+                           popsize=15, 
+                           tol=0.01,
+                           mutation=(0.5, 1), 
+                           recombination=0.7, 
+                           seed=None,
+                           callback=None, 
+                           disp=False, 
+                           polish=True,
+                           init='latinhypercube',   # initial attack pixels
+                           atol=0):
     """Finds the global minimum of a multivariate function.
     Differential Evolution is stochastic in nature (does not use gradient
     methods) to find the minimium, and can search large areas of candidate
@@ -816,6 +826,11 @@ class DifferentialEvolutionSolver(object):
 
             return trial
 
+    ##############################################################################
+    # Need to Consider Combination Stratigies.
+    #
+    # Solution = Solution1 + Scale*(Solution2 - Solution3)
+    ##############################################################################
     def _best1(self, samples):
         """
         best1bin, best1exp
