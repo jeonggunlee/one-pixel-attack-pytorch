@@ -50,7 +50,7 @@ def imsave(filename, img):    # unnormalize
 # xs: attack results, searched perturbations.
 # image: image
 def perturb_image(xs, img):
-	img_origin = img.clone()[0]
+	#img_origin = img.clone()[0]
 	# xs shape: (400, 5)
 	if xs.ndim < 2:
 		xs = np.array([xs])
@@ -74,21 +74,21 @@ def perturb_image(xs, img):
 			# RGB sensitivity check ???
 			# When we read image value, it needs to keep an original image for reading specific position value
 			# To flip bit, New RGB = (RGB value >> specific_bit_position) & 1
-			#imgs[count, 0, x_pos, y_pos] = (r/255.0-0.4914)/0.2023
-			#imgs[count, 1, x_pos, y_pos] = (g/255.0-0.4822)/0.1994
-			#imgs[count, 2, x_pos, y_pos] = (b/255.0-0.4465)/0.2010
-			rr = img_origin[0, x_pos, y_pos]
-			gg = img_origin[1, x_pos, y_pos]
-			bb = img_origin[2, x_pos, y_pos]
+			imgs[count, 0, x_pos, y_pos] = (r/255.0-0.4914)/0.2023
+			imgs[count, 1, x_pos, y_pos] = (g/255.0-0.4822)/0.1994
+			imgs[count, 2, x_pos, y_pos] = (b/255.0-0.4465)/0.2010
+			#rr = img_origin[0, x_pos, y_pos]
+			#gg = img_origin[1, x_pos, y_pos]
+			#bb = img_origin[2, x_pos, y_pos]
 			#print("Before:: rr/gg/bb : ", rr, gg, bb)
 			#print("r/g/b : ", r, g, b)
-			frr = (int((rr*0.2023 + 0.4914)*255) ^ (1 << r))
-			fgg = (int((gg*0.1994 + 0.4822)*255) ^ (1 << g))
-			fbb = (int((bb*0.2010 + 0.4465)*255) ^ (1 << b))
+			#frr = (int((rr*0.2023 + 0.4914)*255) ^ (1 << r))
+			#fgg = (int((gg*0.1994 + 0.4822)*255) ^ (1 << g))
+			#fbb = (int((bb*0.2010 + 0.4465)*255) ^ (1 << b))
 			#print("frr/fgg/fbb : ", frr, fgg, fbb)
-			imgs[count, 0, x_pos, y_pos] = (frr/255.0-0.4914)/0.2023
-			imgs[count, 1, x_pos, y_pos] = (fgg/255.0-0.4822)/0.1994
-			imgs[count, 2, x_pos, y_pos] = (fbb/255.0-0.4465)/0.2010
+			#imgs[count, 0, x_pos, y_pos] = (frr/255.0-0.4914)/0.2023
+			#imgs[count, 1, x_pos, y_pos] = (fgg/255.0-0.4822)/0.1994
+			#imgs[count, 2, x_pos, y_pos] = (fbb/255.0-0.4465)/0.2010
 			#print("After:: rr/gg/bb : ", imgs[count, 0, x_pos, y_pos], imgs[count, 1, x_pos, y_pos], imgs[count, 2, x_pos, y_pos])
 
 		#print("After Perturb")
@@ -140,8 +140,8 @@ def attack(img, label, net, target=None, pixels=1, maxiter=75, popsize=400, verb
 	targeted_attack = target is not None
 	target_calss = target if targeted_attack else label
 
-	#bounds = [(0,32), (0,32), (0,255), (0,255), (0,255)] * pixels
-	bounds = [(0,32), (0,32), (0,7), (0,7), (0,7)] * pixels
+	bounds = [(0,32), (0,32), (0,255), (0,255), (0,255)] * pixels
+	#bounds = [(0,32), (0,32), (0,7), (0,7), (0,7)] * pixels
 
 
 	popmul = int(max(1, popsize/len(bounds)))
@@ -159,12 +159,12 @@ def attack(img, label, net, target=None, pixels=1, maxiter=75, popsize=400, verb
 		for i in range(pixels):
 			init[i*5+0] = np.random.random()*32			# x
 			init[i*5+1] = np.random.random()*32			# y
-			#init[i*5+2] = np.random.normal(128,127)	# Red
-			#init[i*5+3] = np.random.normal(128,127)	# Green
-			#init[i*5+4] = np.random.normal(128,127)	# Blue
-			init[i*5+2] = np.random.randint(0, 8)		# Red: 0 - 7
-			init[i*5+3] = np.random.randint(0, 8)		# Green: 0 - 7
-			init[i*5+4] = np.random.randint(0, 8)		# Blue: 0 - 7
+			init[i*5+2] = np.random.normal(128,127)	# Red
+			init[i*5+3] = np.random.normal(128,127)	# Green
+			init[i*5+4] = np.random.normal(128,127)	# Blue
+			#init[i*5+2] = np.random.randint(0, 8)		# Red: 0 - 7
+			#init[i*5+3] = np.random.randint(0, 8)		# Green: 0 - 7
+			#init[i*5+4] = np.random.randint(0, 8)		# Blue: 0 - 7
 
 	attack_result = differential_evolution(predict_fn, bounds, maxiter=maxiter, popsize=popmul,
 		recombination=1, atol=-1, callback=callback_fn, polish=False, init=inits)
